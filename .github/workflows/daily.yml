@@ -56,17 +56,11 @@ jobs:
           echo "mode=$MODE" >> "$GITHUB_OUTPUT"
           echo "本次模式：$MODE"
 
-      - name: Run pipeline
+      - name: Build report + chart
         env:
-          DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
-          DINGTALK_TOKEN: ${{ secrets.DINGTALK_TOKEN }}
           REPORT_URL_BASE: ${{ vars.REPORT_URL_BASE }}
-        run: |
-          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
-            python scripts/run.py --mode "${{ steps.m.outputs.mode }}" --dry-run
-          else
-            python scripts/run.py --mode "${{ steps.m.outputs.mode }}"
-          fi
+          IMG_URL_BASE: ${{ vars.IMG_URL_BASE }}
+        run: python scripts/run.py --mode "${{ steps.m.outputs.mode }}" --phase build
 
       - name: Commit reports
         run: |
@@ -78,6 +72,20 @@ jobs:
           else
             git commit -m "chore: 港股AI日报 $(TZ=Asia/Shanghai date +%Y-%m-%d) ${{ steps.m.outputs.mode }}"
             git push
+          fi
+
+      # 报告/图表先提交上线，保证消息里的图片和链接可访问后再推送
+      - name: Push to DingTalk
+        env:
+          DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
+          DINGTALK_TOKEN: ${{ secrets.DINGTALK_TOKEN }}
+          REPORT_URL_BASE: ${{ vars.REPORT_URL_BASE }}
+          IMG_URL_BASE: ${{ vars.IMG_URL_BASE }}
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            python scripts/run.py --phase push --dry-run
+          else
+            python scripts/run.py --phase push
           fi
 
       # 可选：把 reports/ 发布到 GitHub Pages，钉钉消息里的链接就能直接点开
