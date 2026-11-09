@@ -1,0 +1,40 @@
+{
+  "updated": "2026-11-09",
+  "benchmarks": [
+    { "symbol": "hkHSI", "label": "恒生指数 HSI" },
+    { "symbol": "hkHSTECH", "label": "恒生科技指数 HSTECH" }
+  ],
+  "tiers": {
+    "1": { "label": "第一梯队", "deep": true },
+    "2": { "label": "第二梯队", "deep": true },
+    "3": { "label": "第三梯队", "deep": false }
+  },
+  "companies": [
+    { "code": "01384", "name": "滴普科技",     "en": "DEEPEXI TECH",   "tier": 1, "note": "用户指定" },
+    { "code": "01956", "name": "中科闻歌",     "en": "WENGE AI",       "tier": 1, "note": "2026-06-26 上市，企业级 AI 平台与决策智能" },
+    { "code": "02706", "name": "海致科技",     "en": "HAIZHI TECH GP", "tier": 1, "note": "2026-02-13 上市，图计算与图-LLM 融合" },
+    { "code": "02718", "name": "明略科技-W",   "en": "MININGLAMP-W",   "tier": 1, "note": "用户指定" },
+    { "code": "02513", "name": "智谱",         "en": "Z.AI",           "tier": 1, "note": "2026-01-08 上市，通用大模型" },
+
+    { "code": "06727", "name": "星环科技",     "en": "TRANSWARP",      "tier": 2, "note": "2026-09-21 上市，AI 与大数据基础设施" },
+    { "code": "03317", "name": "迅策",         "en": "XUNCE",          "tier": 2, "note": "2025-12-30 上市，实时数据基础设施", "key": true },
+    { "code": "06636", "name": "极视角",       "en": "EXTREME VISION", "tier": 2, "note": "2026-03-30 上市，AI 计算机视觉" },
+    { "code": "06651", "name": "五一视界",     "en": "51WORLD",        "tier": 2, "note": "2025-12-30 上市，数字孪生" },
+    { "code": "00068", "name": "群核 MANYCORE","en": "MANYCORE TECH",  "tier": 2, "note": "2026-04-17 上市，群核/酷家乐" },
+    { "code": "06051", "name": "有赞",         "en": "YOUZAN",         "tier": 2, "note": "2026-04-17 上市，电商 SaaS+Agent" },
+    { "code": "00100", "name": "MiniMax-W",    "en": "MINIMAX-W",      "tier": 2, "note": "2026-01-09 上市，全模态大模型" },
+
+    { "code": "00700", "name": "腾讯控股",     "en": "TENCENT",        "tier": 3, "note": "科网龙头" },
+    { "code": "09988", "name": "阿里巴巴-W",   "en": "ALIBABA-W",      "tier": 3, "note": "云 + 大模型" },
+    { "code": "01810", "name": "小米集团-W",   "en": "XIAOMI-W",       "tier": 3, "note": "终端 + AI" },
+    { "code": "00981", "name": "中芯国际",     "en": "SMIC",           "tier": 3, "note": "算力制造" },
+    { "code": "03308", "name": "中际旭创",     "en": "ZHONGJI INNOLIGHT", "tier": 3, "note": "光模块" },
+    { "code": "00600", "name": "爱芯元智",     "en": "AXERA",          "tier": 3, "note": "AI 芯片" },
+    { "code": "06809", "name": "澜起科技",     "en": "MONTAGE",        "tier": 3, "note": "存储/互连芯片" },
+    { "code": "00268", "name": "金蝶国际",     "en": "KINGDEE",        "tier": 3, "note": "企业 SaaS" },
+    { "code": "00992", "name": "联想集团",     "en": "LENOVO",         "tier": 3, "note": "AI 服务器 / 终端" },
+    { "code": "02656", "name": "健康160",      "en": "HEALTH 160",     "tier": 3, "note": "医疗 AI" },
+    { "code": "00020", "name": "商汤-W",       "en": "SENSETIME-W",    "tier": 3, "note": "视觉大模型" },
+    { "code": "06682", "name": "第四范式",     "en": "4PARADIGM",      "tier": 3, "note": "决策 AI" }
+  ]
+}

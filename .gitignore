@@ -1,0 +1,13 @@
+# 缓存：只保留财务缓存（跨 Actions cache 失效时可复用）
+.cache/*
+!.cache/fin_cache.json
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
+Thumbs.db
+
+# 本地调试产物
+*.log
+_push_tmp*.json
