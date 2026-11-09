@@ -62,17 +62,28 @@ python scripts/run.py --mode close --days 7 --refresh-fin
 
 > **当前状态**：仓库 `atman2006/hk-ai-daily`（private）已配好 `DINGTALK_WEBHOOK` secret，首次 `workflow_dispatch`（dry_run）已跑通：数据抓取、报告生成、commit 回仓库全部成功（commit `454e38a`）。Pages 未启用（private 仓库需付费计划才支持），如需报告公网链接可改成 public 仓库或在 Variables 配 `REPORT_URL_BASE` 指向自己的托管地址。
 
-## 报告链接 / 图表（可选）
+## 报告链接 / 图表（已启用）
 
-钉钉聊天**不渲染 HTML**，只能发链接或图片（都要求公网 URL）。本项目已内置两种模式：
+钉钉聊天**不渲染 HTML**，只接受链接或图片（都要求公网 URL）。本仓库已配好：
 
-- 配了 `REPORT_URL_BASE` → 消息用 **actionCard**，底部带「📄 查看完整图表版报告」按钮
-- 没配 → 普通 markdown（默认，无需任何托管）
+| 配置 | 当前值 | 作用 |
+|---|---|---|
+| 仓库可见性 | **public** | 图片/页面可被钉钉直接拉取 |
+| `REPORT_URL_BASE`（Variable） | `https://atman2006.github.io/hk-ai-daily` | 消息底部的「📄 查看完整图表版报告」按钮 |
+| `IMG_URL_BASE`（Variable） | `https://raw.githubusercontent.com/atman2006/hk-ai-daily/main/reports` | 图表 PNG 内嵌到消息里 |
+| GitHub Pages | 已开（Source: GitHub Actions） | 托管 `reports/` 里的 HTML |
 
-要拿到公网 URL，三条免费路线：
-1. 仓库改 **public** → `https://raw.githack.com/<user>/<repo>/main/reports/xxx.html` 可直接渲染
-2. 仓库改 public + 开 Pages → `https://<user>.github.io/<repo>/xxx.html`
-3. 保持 private，把 `reports/` 同步到你自己的服务器 / OSS
+推送流程因此拆两段（`.github/workflows/daily.yml`）：
+
+1. `--phase build`：抓数 → 生成 markdown / HTML / 图表 SVG → 无头 Chrome 截图成 PNG
+2. 提交 `reports/`（**先上线，保证图片和链接可访问**）
+3. `--phase push`：把图片 URL 插进消息，用 `actionCard`（带按钮）推送
+
+本地跑依然是一键：`python scripts/run.py --mode close`（本机有 Edge/Chrome 就会出图）。
+
+要拿公网 URL 的备选方案（如果以后想关掉 public）：
+1. `raw.githack.com/<user>/<repo>/main/reports/xxx.html`（仍需 public）
+2. 自建服务器 / OSS，把 `REPORT_URL_BASE`、`IMG_URL_BASE` 指过去
 
 ## 注意事项
 
