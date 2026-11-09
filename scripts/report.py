@@ -20,8 +20,17 @@ def _bench_line(benchmarks):
     for b in benchmarks:
         if b.get("last") is None:
             continue
-        parts.append("**%s %.2f (%s)**" % (b["name"], b["last"], fmt_pct(b.get("chg_pct"))))
+        arrow = "🟢" if (b.get("chg_pct") or 0) >= 0 else "🔴"
+        parts.append("%s **%s %.2f** %s%.2f%%" % (arrow, b["name"], b["last"],
+                                                  "+" if (b.get("chg_pct") or 0) >= 0 else "-",
+                                                  abs(b.get("chg_pct") or 0)))
     return " ｜ ".join(parts) if parts else "**指数数据缺失**"
+
+
+def _dot(v):
+    if v is None:
+        return "⚪"
+    return "🟢" if v >= 0 else "🔴"
 
 
 def _mini_bar(v, vmax, width=10):
@@ -71,80 +80,80 @@ def build_markdown(snap, notices, news=None, mode="close", report_path="", repor
     L = []
     # ---------- 抬头
     L.append("> " + _bench_line(snap["benchmarks"]))
-    L.append("> 港股AI日报 ｜ 覆盖 %d 家 ｜ %s %s ｜ 估值口径 PS(TTM)" % (len(rows), mode_cn, data_ts or today))
+    L.append("> 🗓 港股AI日报 ｜ 📦 覆盖 %d 家 ｜ ⏱ %s %s ｜ 📊 PS = 市值/TTM营收"
+             % (len(rows), mode_cn, data_ts or today))
     L.append("")
 
     # ---------- 01 核心观察
-    L.append("### 01 · 核心观察")
+    L.append("### 🔥 01 · 核心观察")
     if priced:
         best = max(priced, key=lambda r: r["chg_pct"])
         worst = min(priced, key=lambda r: r["chg_pct"])
-        L.append("- **%s（%s）** %s：监控池内涨幅最大，市值 %sHKD、PS %s"
+        L.append("- 🚀 **%s（%s）** %s：池内最强，市值 %sHKD、PS %s"
                  % (best["name"], best["code"], fmt_pct(best["chg_pct"]), fmt_cap(best["mcap_hkd"]), fmt_ps(best["ps_ttm"])))
-        L.append("- **%s（%s）** %s：监控池内跌幅最大，市值 %sHKD、PS %s"
+        L.append("- 🩸 **%s（%s）** %s：池内最弱，市值 %sHKD、PS %s"
                  % (worst["name"], worst["code"], fmt_pct(worst["chg_pct"]), fmt_cap(worst["mcap_hkd"]), fmt_ps(worst["ps_ttm"])))
-    L.append("- **涨跌结构**：%d 家上涨 / %d 家下跌，涨跌幅中位数 %s"
+    L.append("- ⚖️ **涨跌结构**：%d 家上涨 / %d 家下跌，中位数 %s"
              % (len(ups), len(downs), fmt_pct(median)))
     if today_wire:
-        L.append("- **今日新资讯**：深挖 12 家中 %d 家今日有新闻（%s）"
+        L.append("- 📰 **今日新资讯**：%d/12 家有新闻（%s）"
                  % (len(today_wire), "、".join(_name_of(rows, c) for c in today_wire[:4])))
     else:
-        L.append("- **今日新资讯**：深挖 12 家中今日暂无新增新闻，下方为各家最新一条（标注日期）")
+        L.append("- 📰 **今日新资讯**：今日暂无新增，下方为各家最新一条（带日期）")
     if hot_news:
-        L.append("- **公告面**：%s 有新公告（%s）"
+        L.append("- 📢 **公告**：%s 有新公告（%s）"
                  % ("、".join(dict.fromkeys(_name_of(rows, c) for c, _ in hot_news)),
                     "；".join("《%s》" % h[1]["title"][:14] for h in hot_news[:2])))
     L.append("")
 
     # ---------- 02 / 03 逐家
-    for tier, head_extra in ((1, "（5 家 · 深挖）"), (2, "（7 家）")):
-        L.append("### 0%d · %s%s" % (tier + 1, TIER_LABEL[tier], head_extra))
+    for tier, head_extra, icon in ((1, "（5 家 · 深挖）", "🥇"), (2, "（7 家）", "🥈")):
+        L.append("### %s 0%d · %s%s" % (icon, tier + 1, TIER_LABEL[tier], head_extra))
         for r in tiers[tier]:
-            tag = "（重点）" if r.get("key") else ""
-            L.append("**%s%s** `%s`｜收 **%.3f**｜**%s**｜市值 **%sHKD**｜PS **%s**"
-                     % (r["name"], tag, r["code"], r["price"] or 0, fmt_pct(r["chg_pct"]),
+            tag = " 🔑" if r.get("key") else ""
+            L.append("**%s**%s `%s`｜💵 **%.3f** %s**%s**｜🏷 **%sHKD**｜📊 **%s**"
+                     % (r["name"], tag, r["code"], r["price"] or 0, _dot(r["chg_pct"]), fmt_pct(r["chg_pct"]),
                         fmt_cap(r["mcap_hkd"]), fmt_ps(r["ps_ttm"])))
             ns = notices.get(r["code"]) or []
             hot = [n for n in ns if n["hot"]]
             for n in hot[:1]:
-                L.append("- 公告：《%s》%s → [原文](%s)" % (n["title"], _date_label(n["date"], today), n["url"]))
+                L.append("- 📢 《%s》%s [原文](%s)" % (n["title"], _date_label(n["date"], today), n["url"]))
             ws = news.get(r["code"]) or []
             if ws:
                 for n in ws[:2]:
-                    L.append("- 资讯：%s（%s）[%s](%s)"
+                    L.append("- 📰 %s（%s）[%s](%s)"
                              % (n["title"], _date_label(n["date"], today), n["source"][:4], n["url"]))
             elif not hot:
-                L.append("- 资讯：暂无相关新闻；%s" % (r["note"] or "行情异动待核"))
+                L.append("- 💤 暂无相关新闻；%s" % (r["note"] or "行情异动待核"))
             L.append("")
 
     # ---------- 04 其他异动
-    L.append("### 04 · 其他异动")
+    L.append("### ⚡ 04 · 其他异动")
     movers = [r for r in tiers[3] if r["chg_pct"] is not None and abs(r["chg_pct"]) >= 3]
     if movers:
         for r in sorted(movers, key=lambda r: -abs(r["chg_pct"])):
-            L.append("- **%s** `%s` **%s**：成交 %s；近 %d 日公告 %d 条"
-                     % (r["name"], r["code"], fmt_pct(r["chg_pct"]), fmt_amount(r["turnover"]),
-                        days, len(notices.get(r["code"]) or [])))
+            L.append("- %s **%s** `%s` **%s**：成交 %s"
+                     % (_dot(r["chg_pct"]), r["name"], r["code"], fmt_pct(r["chg_pct"]), fmt_amount(r["turnover"])))
     else:
         third = [r for r in tiers[3] if r["chg_pct"] is not None]
         if third:
             top = max(third, key=lambda r: abs(r["chg_pct"]))
-            L.append("- 第三梯队无 |涨跌| ≥ 3%% 的异动（波动最大：%s %s）" % (top["name"], fmt_pct(top["chg_pct"])))
+            L.append("- 💤 第三梯队无 |涨跌| ≥ 3%% 异动（波动最大：%s %s）" % (top["name"], fmt_pct(top["chg_pct"])))
         else:
-            L.append("- 第三梯队无行情数据")
+            L.append("- ⚪ 第三梯队无行情数据")
     L.append("")
 
     # ---------- 05 估值速览
-    L.append("### 05 · 估值速览")
-    for t in (1, 2, 3):
+    L.append("### 💎 05 · 估值速览")
+    for t, icon in ((1, "🥇"), (2, "🥈"), (3, "🥉")):
         seg = " · ".join("%s %s/%s" % (r["name"], fmt_cap(r["mcap_hkd"]), fmt_ps(r["ps_ttm"]))
                          for r in tiers[t] if r["mcap_hkd"])
         if seg:
-            L.append("- **%s**：%s" % (TIER_LABEL[t], seg))
+            L.append("- %s **%s**：%s" % (icon, TIER_LABEL[t], seg))
     L.append("")
 
     # ---------- 06 今日观察
-    L.append("### 06 · 今日观察")
+    L.append("### 🧭 06 · 今日观察")
     obs = _observations(rows, tiers, notices, news=news, today=today)
     for o in obs:
         L.append("- " + o)
@@ -170,7 +179,7 @@ def _observations(rows, tiers, notices, news=None, today=""):
         up = [r for r in priced if r["chg_pct"] > 0]
         med = statistics.median([r["chg_pct"] for r in priced])
         tone = "普涨" if len(up) >= len(priced) * 0.7 else ("普跌" if len(up) <= len(priced) * 0.3 else "分化")
-        obs.append("**板块结构**：%d/%d 家上涨，中位数 %s，整体%s；关注是否由权重股或单一事件驱动。"
+        obs.append("⚖️ **板块结构**：%d/%d 家上涨，中位数 %s，整体%s；关注是否由权重股或单一事件驱动。"
                    % (len(up), len(priced), fmt_pct(med), tone))
 
     # 资讯密度
@@ -184,10 +193,10 @@ def _observations(rows, tiers, notices, news=None, today=""):
                 if today and n["date"] == today and r["name"] not in today_wire:
                     today_wire.append(r["name"])
     if today_wire:
-        obs.append("**资讯面**：%s 今日有新消息，建议对照股价看是否有透支；其余标的今日无新增。"
+        obs.append("📰 **资讯面**：%s 今日有新消息，可对照股价看是否已透支；其余标的今日无新增。"
                    % "、".join(today_wire[:4]))
     elif latest:
-        obs.append("**资讯面**：今日无新增，各家最新一条为 %s（%s）《%s》。"
+        obs.append("📰 **资讯面**：今日无新增，各家最新为 %s（%s）《%s》。"
                    % (latest[0], _date_label(latest[1]["date"], today or ""), latest[1]["title"][:24]))
 
     # 公告面
@@ -199,17 +208,17 @@ def _observations(rows, tiers, notices, news=None, today=""):
                     hot.append((r["name"], n))
     if hot:
         names = "、".join(dict.fromkeys(h[0] for h in hot[:4]))
-        obs.append("**公告面**：%s 有实质性披露（%s），需核对是否已被价格反映。"
+        obs.append("📢 **公告面**：%s 有实质性披露（%s），需核对是否已被价格反映。"
                    % (names, "；".join("《%s》" % h[1]["title"][:16] for h in hot[:2])))
     else:
-        obs.append("**公告面**：第一/二梯队近期无实质性公告，当日波动更可能来自板块情绪。")
+        obs.append("📢 **公告面**：第一/二梯队近期无实质性公告，当日波动更可能来自板块情绪。")
 
     # 估值极值（一二梯队）
     pool = [r for r in rows if r["tier"] in (1, 2) and r["ps_ttm"] and r["ps_ttm"] > 0]
     if pool:
         hi = max(pool, key=lambda r: r["ps_ttm"])
         lo = min(pool, key=lambda r: r["ps_ttm"])
-        obs.append("**估值分化**：%s PS %s 为梯队内最高，%s PS %s 为最低；同赛道估值差达 %.0f 倍，定价锚仍在形成中。"
+        obs.append("💰 **估值分化**：%s PS %s 梯队内最高，%s PS %s 最低；同赛道估值差 %.0f 倍，定价锚仍在形成中。"
                    % (hi["name"], fmt_ps(hi["ps_ttm"]), lo["name"], fmt_ps(lo["ps_ttm"]),
                       hi["ps_ttm"] / lo["ps_ttm"] if lo["ps_ttm"] else 0))
     return obs[:3]

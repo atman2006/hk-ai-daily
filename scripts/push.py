@@ -104,7 +104,7 @@ def split_text(text, title="港股AI日报"):
 
     out, n = [], len(chunks)
     for i, c in enumerate(chunks, 1):
-        body = c if i == 1 else "### 港股AI日报（续 %d/%d）\n\n%s" % (i, n, c)
+        body = c if i == 1 else "### ➡️ 港股AI日报 · 续 %d/%d\n\n%s" % (i, n, c)
         if KEYWORD not in body:
             body = "**%s**\n%s" % (title, body)
         out.append(body)
