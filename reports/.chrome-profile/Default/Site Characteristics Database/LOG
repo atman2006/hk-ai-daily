@@ -1,3 +1,2 @@
-2026/11/09-22:21:11.332 6d60 Reusing MANIFEST c:\Users\25239\NextWork\project\hk-ai-daily\reports\.chrome-profile\Default\Site Characteristics Database/MANIFEST-000001
-2026/11/09-22:21:11.333 6d60 Recovering log #3
-2026/11/09-22:21:11.334 6d60 Reusing old log c:\Users\25239\NextWork\project\hk-ai-daily\reports\.chrome-profile\Default\Site Characteristics Database/000003.log 
+2026/11/09-14:22:56.851 8cf Creating DB /home/runner/work/hk-ai-daily/hk-ai-daily/reports/.chrome-profile/Default/Site Characteristics Database since it was missing.
+2026/11/09-14:22:56.856 8cf Reusing MANIFEST /home/runner/work/hk-ai-daily/hk-ai-daily/reports/.chrome-profile/Default/Site Characteristics Database/MANIFEST-000001
