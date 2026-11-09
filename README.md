@@ -53,8 +53,10 @@ python scripts/run.py --mode close --days 7 --refresh-fin
 2. 仓库 **Settings → Secrets and variables → Actions** 添加：
    - `DINGTALK_WEBHOOK`（推荐，完整 webhook URL）或 `DINGTALK_TOKEN`（只要 access_token）
    - 可选 `REPORT_URL_BASE`（放在 Variables，比如 `https://<user>.github.io/<repo>`，消息里就会带可点链接）
-3. Settings → Pages → Source 选 **GitHub Actions**（想用报告链接才需要；没开也不影响推送，部署步骤是 `continue-on-error`）。
+3. Settings → Pages → Source 选 **GitHub Actions**（想用报告链接才需要；没开也不影响推送——`Get pages` 返回 404 时那两步会被 `continue-on-error` 跳过，本次已验证）。
 4. 想立刻跑一次：Actions → 港股AI日报 → Run workflow（可选 `dry_run`）。
+
+> **当前状态**：仓库 `atman2006/hk-ai-daily`（private）已配好 `DINGTALK_WEBHOOK` secret，首次 `workflow_dispatch`（dry_run）已跑通：数据抓取、报告生成、commit 回仓库全部成功（commit `454e38a`）。Pages 未启用（private 仓库需付费计划才支持），如需报告公网链接可改成 public 仓库或在 Variables 配 `REPORT_URL_BASE` 指向自己的托管地址。
 
 ## 注意事项
 
