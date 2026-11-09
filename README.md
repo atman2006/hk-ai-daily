@@ -28,7 +28,11 @@
 | 行情 / 总市值 / PE / PB | 东方财富 `push2` 批量接口 | 一次请求取 24 家 |
 | 营业总收入（算 PS） | 东方财富港股 F10 `RPT_HKF10_FN_MAININDICATOR` | 本地缓存 7 天 |
 | 恒指 / 恒生科技 | 新浪 `hq.sinajs.cn` | 需 Referer |
-| 公告（港交所披露） | 东方财富公告库 `ann_type=H` | 只取标题+日期+链接，不做归纳 |
+| 公司新闻（舆情） | 东方财富「个股资讯」`np-listapi` | 按公司名相关度排序，取最新 2 条，标日期 |
+| 公司新闻（补充） | Bing News RSS / Google News RSS | 东财没有点名新闻时才用 |
+| 公告（港交所披露） | 东方财富公告库 `ann_type=H` | 只推送实质性公告，月报表等例行公告不进消息 |
+
+新闻只取「标题 + 媒体 + 日期 + 链接」，**不做 LLM 归纳**；同一家公司按相关性取最新 2 条，标题里会标「今日 / 昨日 / MM-DD」，覆盖薄的标的会显示其最近一条（日期能看出新旧）。
 
 `PS(TTM) = 总市值(HKD) ÷ 滚动 12 个月营业总收入`；中报口径为「上年年报 + 本期 − 上年同期」；取不到营收就写 `N/A`，绝不估算。
 
@@ -57,6 +61,18 @@ python scripts/run.py --mode close --days 7 --refresh-fin
 4. 想立刻跑一次：Actions → 港股AI日报 → Run workflow（可选 `dry_run`）。
 
 > **当前状态**：仓库 `atman2006/hk-ai-daily`（private）已配好 `DINGTALK_WEBHOOK` secret，首次 `workflow_dispatch`（dry_run）已跑通：数据抓取、报告生成、commit 回仓库全部成功（commit `454e38a`）。Pages 未启用（private 仓库需付费计划才支持），如需报告公网链接可改成 public 仓库或在 Variables 配 `REPORT_URL_BASE` 指向自己的托管地址。
+
+## 报告链接 / 图表（可选）
+
+钉钉聊天**不渲染 HTML**，只能发链接或图片（都要求公网 URL）。本项目已内置两种模式：
+
+- 配了 `REPORT_URL_BASE` → 消息用 **actionCard**，底部带「📄 查看完整图表版报告」按钮
+- 没配 → 普通 markdown（默认，无需任何托管）
+
+要拿到公网 URL，三条免费路线：
+1. 仓库改 **public** → `https://raw.githack.com/<user>/<repo>/main/reports/xxx.html` 可直接渲染
+2. 仓库改 public + 开 Pages → `https://<user>.github.io/<repo>/xxx.html`
+3. 保持 private，把 `reports/` 同步到你自己的服务器 / OSS
 
 ## 注意事项
 

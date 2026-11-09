@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """生成钉钉 markdown（01-06 分节）与本地 HTML 报告。全部规则化，无 LLM。"""
+import datetime
 import html
 import os
 import statistics
@@ -28,7 +29,22 @@ def _mini_bar(v, vmax, width=10):
     return ("▇" * max(n, 1))
 
 
-def build_markdown(snap, notices, mode="close", report_path="", report_url="", data_ts="", days=5):
+def _date_label(d, today):
+    """把 2026-11-09 这类日期转成 今日/昨日/MM-DD。"""
+    if not d:
+        return ""
+    if d == today:
+        return "今日"
+    try:
+        dt = datetime.date.fromisoformat(d)
+        if (datetime.date.fromisoformat(today) - dt).days == 1:
+            return "昨日"
+    except ValueError:
+        pass
+    return d[5:]
+
+
+def build_markdown(snap, notices, news=None, mode="close", report_path="", report_url="", data_ts="", days=5):
     rows = snap["rows"]
     tiers = {1: [r for r in rows if r["tier"] == 1],
              2: [r for r in rows if r["tier"] == 2],
@@ -40,9 +56,12 @@ def build_markdown(snap, notices, mode="close", report_path="", report_url="", d
     downs = [r for r in priced if r["chg_pct"] < 0]
     median = statistics.median([r["chg_pct"] for r in priced]) if priced else 0.0
 
-    # ---- 公告汇总
+    # ---- 资讯 / 公告汇总
+    news = news or {}
     deep_codes = [r["code"] for r in rows if r["tier"] in (1, 2)]
     deep_with_news = [c for c in deep_codes if notices.get(c)]
+    deep_with_wire = [c for c in deep_codes if news.get(c)]
+    today_wire = [c for c in deep_codes if any(n["date"] == today for n in (news.get(c) or []))]
     hot_news = []
     for c in deep_codes:
         for n in notices.get(c, []):
@@ -66,10 +85,15 @@ def build_markdown(snap, notices, mode="close", report_path="", report_url="", d
                  % (worst["name"], worst["code"], fmt_pct(worst["chg_pct"]), fmt_cap(worst["mcap_hkd"]), fmt_ps(worst["ps_ttm"])))
     L.append("- **涨跌结构**：%d 家上涨 / %d 家下跌，涨跌幅中位数 %s"
              % (len(ups), len(downs), fmt_pct(median)))
-    L.append("- **公告面**：深挖 12 家中 %d 家近 %d 日有披露%s"
-             % (len(deep_with_news), days,
-                ("，实质性的：" + "、".join(dict.fromkeys(_name_of(rows, c) for c, _ in hot_news))) if hot_news
-                else "（多为月报表等例行公告）"))
+    if today_wire:
+        L.append("- **今日新资讯**：深挖 12 家中 %d 家今日有新闻（%s）"
+                 % (len(today_wire), "、".join(_name_of(rows, c) for c in today_wire[:4])))
+    else:
+        L.append("- **今日新资讯**：深挖 12 家中今日暂无新增新闻，下方为各家最新一条（标注日期）")
+    if hot_news:
+        L.append("- **公告面**：%s 有新公告（%s）"
+                 % ("、".join(dict.fromkeys(_name_of(rows, c) for c, _ in hot_news)),
+                    "；".join("《%s》" % h[1]["title"][:14] for h in hot_news[:2])))
     L.append("")
 
     # ---------- 02 / 03 逐家
@@ -82,13 +106,15 @@ def build_markdown(snap, notices, mode="close", report_path="", report_url="", d
                         fmt_cap(r["mcap_hkd"]), fmt_ps(r["ps_ttm"])))
             ns = notices.get(r["code"]) or []
             hot = [n for n in ns if n["hot"]]
-            show = hot or ns
-            if show:
-                tail = "（例行）" if (not hot and all(n["routine"] for n in show)) else ""
-                L.append("- 公告%s：%s" % (tail, "；".join("《%s》%s" % (n["title"], n["date"][5:]) for n in show[:2])))
-                L.append("- [公告原文](%s)" % show[0]["url"])
-            else:
-                L.append("- 公告：近 %d 日无港交所新披露；%s" % (days, r["note"] or "行情异动待核"))
+            for n in hot[:1]:
+                L.append("- 公告：《%s》%s → [原文](%s)" % (n["title"], _date_label(n["date"], today), n["url"]))
+            ws = news.get(r["code"]) or []
+            if ws:
+                for n in ws[:2]:
+                    L.append("- 资讯：%s（%s）[%s](%s)"
+                             % (n["title"], _date_label(n["date"], today), n["source"][:4], n["url"]))
+            elif not hot:
+                L.append("- 资讯：暂无相关新闻；%s" % (r["note"] or "行情异动待核"))
             L.append("")
 
     # ---------- 04 其他异动
@@ -119,7 +145,7 @@ def build_markdown(snap, notices, mode="close", report_path="", report_url="", d
 
     # ---------- 06 今日观察
     L.append("### 06 · 今日观察")
-    obs = _observations(rows, tiers, notices)
+    obs = _observations(rows, tiers, notices, news=news, today=today)
     for o in obs:
         L.append("- " + o)
     L.append("")
@@ -137,7 +163,7 @@ def _name_of(rows, code):
     return code
 
 
-def _observations(rows, tiers, notices):
+def _observations(rows, tiers, notices, news=None, today=""):
     obs = []
     priced = _pct_rows(rows)
     if priced:
@@ -147,19 +173,36 @@ def _observations(rows, tiers, notices):
         obs.append("**板块结构**：%d/%d 家上涨，中位数 %s，整体%s；关注是否由权重股或单一事件驱动。"
                    % (len(up), len(priced), fmt_pct(med), tone))
 
-    # 公告密度
+    # 资讯密度
+    news = news or {}
+    today_wire, latest = [], None
+    for tier in (1, 2):
+        for r in tiers[tier]:
+            for n in (news.get(r["code"]) or []):
+                if not latest or n["date"] > latest[1]["date"]:
+                    latest = (r["name"], n)
+                if today and n["date"] == today and r["name"] not in today_wire:
+                    today_wire.append(r["name"])
+    if today_wire:
+        obs.append("**资讯面**：%s 今日有新消息，建议对照股价看是否有透支；其余标的今日无新增。"
+                   % "、".join(today_wire[:4]))
+    elif latest:
+        obs.append("**资讯面**：今日无新增，各家最新一条为 %s（%s）《%s》。"
+                   % (latest[0], _date_label(latest[1]["date"], today or ""), latest[1]["title"][:24]))
+
+    # 公告面
     hot = []
     for tier in (1, 2):
         for r in tiers[tier]:
             for n in (notices.get(r["code"]) or []):
                 if n["hot"]:
-                    hot.append((r["name"], n["title"]))
+                    hot.append((r["name"], n))
     if hot:
         names = "、".join(dict.fromkeys(h[0] for h in hot[:4]))
         obs.append("**公告面**：%s 有实质性披露（%s），需核对是否已被价格反映。"
-                   % (names, "；".join("《%s》" % h[1][:16] for h in hot[:2])))
+                   % (names, "；".join("《%s》" % h[1]["title"][:16] for h in hot[:2])))
     else:
-        obs.append("**公告面**：第一/二梯队近 5 日无实质性披露，当日波动更可能来自板块情绪。")
+        obs.append("**公告面**：第一/二梯队近期无实质性公告，当日波动更可能来自板块情绪。")
 
     # 估值极值（一二梯队）
     pool = [r for r in rows if r["tier"] in (1, 2) and r["ps_ttm"] and r["ps_ttm"] > 0]
@@ -211,7 +254,7 @@ font-family:var(--mono);font-size:11px;color:var(--faint);text-align:center}
 """
 
 
-def build_html(snap, notices, mode="close", data_ts="", days=5):
+def build_html(snap, notices, news=None, mode="close", data_ts="", days=5):
     rows = snap["rows"]
     mode_cn = MODE_LABEL.get(mode, "收盘")
     today = hk_today()
@@ -229,17 +272,22 @@ def build_html(snap, notices, mode="close", data_ts="", days=5):
         for r in [x for x in rows if x["tier"] == tier]:
             cls = "u" if (r["chg_pct"] or 0) >= 0 else "d"
             key = '<span class="key">重点</span>' if r.get("key") else ""
-            ns = notices.get(r["code"]) or []
-            news = "；".join("《%s》%s" % (e(n["title"]), n["date"][5:]) for n in ns[:2]) or "—"
+            ws = (news or {}).get(r["code"]) or []
+            if ws:
+                w0 = ws[0]
+                latest_news = '<a href="%s">%s</a> <span class="dim">%s · %s</span>' % (
+                    w0["url"], e(w0["title"][:40]), e(_date_label(w0["date"], hk_today())), e(w0["source"][:8]))
+            else:
+                latest_news = "—"
             trs.append("<tr><td class='nm'>%s%s <span class='code'>%s</span></td>"
                        "<td class='num'>%s</td><td class='num %s'>%s</td><td class='num'>%s</td>"
                        "<td class='num'>%s</td><td class='num'>%s</td><td>%s</td></tr>"
                        % (e(r["name"]), key, r["code"],
                           ("%.3f" % r["price"]) if r["price"] else "—", cls, fmt_pct(r["chg_pct"]),
-                          fmt_amount(r["turnover"]), fmt_cap(r["mcap_hkd"]), fmt_ps(r["ps_ttm"]), news))
+                          fmt_amount(r["turnover"]), fmt_cap(r["mcap_hkd"]), fmt_ps(r["ps_ttm"]), latest_news))
         return ("<table><thead><tr><th>公司 / 代码</th><th class='num'>收盘</th><th class='num'>涨跌幅</th>"
                 "<th class='num'>成交额</th><th class='num'>总市值(HKD)</th><th class='num'>PS(TTM)</th>"
-                "<th>近 %d 日公告</th></tr></thead><tbody>" % days + "".join(trs) + "</tbody></table>")
+                "<th>最新资讯</th></tr></thead><tbody>" + "".join(trs) + "</tbody></table>")
 
     # 估值对比（一二梯队按 PS 排序）
     pool = sorted([r for r in rows if r["tier"] in (1, 2) and r["ps_ttm"]], key=lambda r: r["ps_ttm"], reverse=True)
@@ -268,7 +316,8 @@ def build_html(snap, notices, mode="close", data_ts="", days=5):
     obs = "".join("<div class='news'><p>▸ %s</p></div>" % e(o.replace("**", "")) for o in
                   _observations(rows, {1: [r for r in rows if r["tier"] == 1],
                                        2: [r for r in rows if r["tier"] == 2],
-                                       3: [r for r in rows if r["tier"] == 3]}, notices))
+                                       3: [r for r in rows if r["tier"] == 3]}, notices,
+                               news=news, today=hk_today()))
 
     return """<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">

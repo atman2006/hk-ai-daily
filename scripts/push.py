@@ -14,7 +14,7 @@ ensure_utf8_stdout()
 
 KEYWORD = "港股AI日报"
 HARD_LIMIT = 3900
-SOFT_LIMIT = 2600
+SOFT_LIMIT = 3500   # 尽量靠拢硬上限，但仍按 `### 小节` 边界断，单家标的不会被切开
 MEM_PATH = os.environ.get("DINGTALK_MEM", r"C:\Users\25239\AppData\Roaming\NextWork\openclaw-8.1\state\workspace-ai\MEMORY.md")
 MARK = "access_" + "token="
 
@@ -111,19 +111,29 @@ def split_text(text, title="港股AI日报"):
     return out
 
 
-def push_text(text, title="港股AI日报", dry_run=False):
+def push_text(text, title="港股AI日报", dry_run=False, card_url=None):
+    """card_url 不为空时用 actionCard（带「查看完整报告」按钮），否则用普通 markdown。"""
     chunks = split_text(text, title=title)
     if dry_run:
         for i, c in enumerate(chunks, 1):
             print("--- chunk %d/%d  %d bytes ---" % (i, len(chunks), len(c.encode("utf-8"))))
             print(c)
+        if card_url:
+            print("[card] 按钮链接 -> %s" % card_url)
         return True, [len(c.encode("utf-8")) for c in chunks]
 
     ok = True
     sizes = []
     for i, c in enumerate(chunks, 1):
         ttl = title if len(chunks) == 1 else "%s（%d/%d）" % (title, i, len(chunks))
-        res = _post({"msgtype": "markdown", "markdown": {"title": ttl, "text": c}})
+        if card_url:
+            payload = {"msgtype": "actionCard", "actionCard": {
+                "title": ttl, "text": c,
+                "singleTitle": "📄 查看完整图表版报告", "singleURL": card_url,
+                "btnOrientation": "0"}}
+        else:
+            payload = {"msgtype": "markdown", "markdown": {"title": ttl, "text": c}}
+        res = _post(payload)
         sizes.append(len(c.encode("utf-8")))
         print("[%d/%d] %d bytes -> %s" % (i, len(chunks), sizes[-1], res))
         if '"errcode":0' not in res:

@@ -18,7 +18,7 @@ from common import REPORT_DIR, ensure_utf8_stdout, hk_datetime_str, hk_today, lo
 
 ensure_utf8_stdout()
 from market import build_snapshot  # noqa: E402
-from news import fetch_all  # noqa: E402
+from news import fetch_all as fetch_all_notices, fetch_all_news  # noqa: E402
 from push import push_text  # noqa: E402
 from report import build_html, build_markdown  # noqa: E402
 
@@ -44,8 +44,11 @@ def main():
     print("[1/5] 行情 + 市值 + PS …")
     snap = build_snapshot(wl, refresh_fin=args.refresh_fin)
 
-    print("[2/5] 公告（近 %d 天）…" % args.days)
-    notices = fetch_all([c["code"] for c in wl["companies"]], days=args.days)
+    print("[2/5] 公告（近 %d 天）+ 最新资讯 …" % args.days)
+    codes = [c["code"] for c in wl["companies"]]
+    notices = fetch_all_notices(codes, days=args.days)
+    deep = [c for c in wl["companies"] if c.get("tier") in (1, 2)]
+    news = fetch_all_news(deep, days=0, limit=2)
 
     today = hk_today()
     mode_cn = "收盘" if args.mode == "close" else "早盘前"
@@ -60,17 +63,17 @@ def main():
         if b.get("date"):
             data_ts = "%s %s" % (b["date"], b.get("time", ""))
             break
-    text = build_markdown(snap, notices, mode=args.mode, report_path="reports/" + fname + ".md",
+    text = build_markdown(snap, notices, news=news, mode=args.mode, report_path="reports/" + fname + ".md",
                           report_url=report_url, data_ts=data_ts, days=args.days)
     os.makedirs(REPORT_DIR, exist_ok=True)
     with open(md_path, "w", encoding="utf-8") as f:
         f.write(text)
     with open(html_path, "w", encoding="utf-8") as f:
-        f.write(build_html(snap, notices, mode=args.mode, data_ts=data_ts, days=args.days))
+        f.write(build_html(snap, notices, news=news, mode=args.mode, data_ts=data_ts, days=args.days))
     save_json(os.path.join(ROOT, ".cache", "last_snapshot.json"), snap)
 
-    n_deep_news = sum(1 for r in snap["rows"] if r["tier"] in (1, 2) and notices.get(r["code"]))
-    print("      覆盖 %d 家 ｜ 深挖 12 家中 %d 家有新公告 ｜ 报告 %s" % (len(snap["rows"]), n_deep_news, fname))
+    n_deep_wire = sum(1 for c in deep if news.get(c["code"]))
+    print("      覆盖 %d 家 ｜ 深挖 12 家中 %d 家有资讯 ｜ 报告 %s" % (len(snap["rows"]), n_deep_wire, fname))
 
     ok = True
     sizes = []
@@ -78,7 +81,8 @@ def main():
         print("[4/5] 跳过推送（--no-push）")
     else:
         print("[4/5] 推送钉钉 …")
-        ok, sizes = push_text(text, title="港股AI日报 %s %s" % (today[5:], mode_cn), dry_run=args.dry_run)
+        ok, sizes = push_text(text, title="港股AI日报 %s %s" % (today[5:], mode_cn),
+                              dry_run=args.dry_run, card_url=report_url or None)
 
     print("[5/5] 完成 ｜ %s ｜ 分条 %s ｜ markdown %s"
           % (("dry-run 未推送" if args.dry_run else ("已跳过推送" if args.no_push else ("推送成功 OK" if ok else "推送失败 FAILED"))),
