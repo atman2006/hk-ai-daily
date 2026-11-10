@@ -1,6 +1,6 @@
 # 港股AI日报 · 自动化推送
 
-监控 24 家港股 AI 相关公司，每日两次（北京时间 09:05 早盘前 / 17:05 收盘）自动生成行情 + 估值（总市值、PS(TTM)）+ 港交所公告速览，并推送到钉钉群机器人。
+monitor 24 家港股 AI 相关公司，**每日收盘后自动跑一次**（港股 16:20），生成行情 + 估值（总市值、PS(TTM)）+ 港交所公告速览，并推送到钉钉群机器人。
 
 **运行时零依赖**：只用 Python 3.11 标准库，不装任何第三方包（`requirements.txt` 为空壳）。
 
@@ -42,14 +42,19 @@
 # 只生成报告，不推送（推荐先这样验一遍）
 python scripts/run.py --mode close --dry-run
 
-# 早盘前版
-python scripts/run.py --mode early
+# 盘中快照 / 早盘前（手动场景）
+python scripts/run.py --mode intraday
+
+# 今日已推过还想重发
+python scripts/run.py --phase push --force
 
 # 调公告回溯天数 / 强制刷新财务缓存
 python scripts/run.py --mode close --days 7 --refresh-fin
 ```
 
-产物：`reports/港股AI日报-YYYY-MM-DD-{收盘|早盘前}.md` 与同名 `.html`（深色终端风，可直接打开看）。
+产物：`reports/YYYY-MM-DD-{close|intraday|early}.md` 与同名 `.html`（纯 ASCII 文件名，避开了钉钉 PC 端打不开中文 URL 的坑）。
+
+> **版本标签自动纠正**：`--mode auto`（默认）按香港时间判定——`<09:30` 早盘前、`09:30–16:10` 盘中、`≥16:10` 收盘。即使 cron 被 GitHub 延迟几小时，也不会再把盘中数据标成「收盘」。
 
 ## 部署到 GitHub Actions
 
@@ -87,8 +92,9 @@ python scripts/run.py --mode close --days 7 --refresh-fin
 
 ## 注意事项
 
-- **时区**：GitHub Actions 的 cron 是 UTC。本仓库用 `5 1 * * 1-5`（北京 09:05）和 `5 9 * * 1-5`（北京 17:05）。
-- **延迟**：Actions 定时任务常延迟 5–20 分钟，不要拿来卡整点。
+- **时区与频率**：GitHub Actions 的 cron 是 UTC。本仓库只用 `20 8 * * 1-5`（港股 16:20，收盘竞价 16:10 结束后取正式收盘价），**每天只跑一次、只推一次**。
+- **推送去重**：`.cache/pushed.json` 记录今日已推送的日期+版本，重复运行会直接跳过（要重发加 `--force`）。
+- **延迟**：Actions 定时任务可能延迟，极端情况可达数小时；标签会按实际港时自动纠正。
 - **60 天停用**：仓库 60 天无提交，GitHub 会自动停用定时任务；本工作流每次运行都会把报告 commit 回来，只要还在跑就不会触发停用。
 - **非交易日**：工作日仍会在节假日触发，此时行情为最近交易日数据，消息里会带上报价时间。
 - **无 LLM 的边界**：本版本只做「公告标题 + 行情 + 估值」的规则化拼装，**没有舆情归纳和因果判断**；要恢复后者需接 LLM + 搜索 API（见 `requirements-dev.txt`）。
