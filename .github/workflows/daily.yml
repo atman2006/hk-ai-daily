@@ -9,10 +9,10 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "close=收盘版 / early=早盘前版"
+        description: "auto=按时间自动判定 / close=收盘版 / early=早盘前版 / intraday=盘中快照"
         type: choice
-        options: [close, early]
-        default: close
+        options: [auto, close, early, intraday]
+        default: auto
       dry_run:
         description: "只生成不推送"
         type: boolean
@@ -50,11 +50,9 @@ jobs:
         id: m
         run: |
           MODE="${{ github.event.inputs.mode }}"
-          if [ -z "$MODE" ]; then
-            if [ "${{ github.event.schedule }}" = "5 1 * * 1-5" ]; then MODE=early; else MODE=close; fi
-          fi
+          if [ -z "$MODE" ]; then MODE=auto; fi
           echo "mode=$MODE" >> "$GITHUB_OUTPUT"
-          echo "本次模式：$MODE"
+          echo "本次模式：$MODE（auto 会按港时自动判定早盘前/盘中/收盘）"
 
       - name: Build report + chart
         env:

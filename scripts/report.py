@@ -8,7 +8,7 @@ import statistics
 from common import fmt_amount, fmt_cap, fmt_pct, fmt_ps, hk_datetime_str, hk_today
 
 TIER_LABEL = {1: "第一梯队", 2: "第二梯队", 3: "第三梯队"}
-MODE_LABEL = {"close": "收盘", "early": "早盘前"}
+MODE_LABEL = {"close": "收盘", "early": "早盘前", "intraday": "盘中"}
 
 
 def _pct_rows(rows):
@@ -82,6 +82,8 @@ def build_markdown(snap, notices, news=None, mode="close", report_path="", repor
     L.append("> " + _bench_line(snap["benchmarks"]))
     L.append("> 🗓 港股AI日报 ｜ 📦 覆盖 %d 家 ｜ ⏱ %s %s ｜ 📊 PS = 市值/TTM营收"
              % (len(rows), mode_cn, data_ts or today))
+    if mode == "intraday":
+        L.append("> ⚠️ 以上为**盘中快照**，非收盘价，收盘后以 17:05 那份为准")
     L.append("")
 
     # ---------- 01 核心观察

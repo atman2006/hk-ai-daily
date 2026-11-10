@@ -31,7 +31,27 @@ WATCHLIST = os.path.join(ROOT, "config", "watchlist.json")
 STATE = os.path.join(ROOT, ".cache", "last_message.json")
 
 
+def _resolve_mode(mode):
+    """根据香港时间确定版本，避免盘中数据被标成「收盘」。
+    港股时段：09:30 开盘、12:00-13:00 午休、16:00 收盘。
+    < 09:30 → early；09:30-16:05 → intraday；>= 16:05 → close。
+    """
+    import time as _t
+    g = _t.gmtime(_t.time() + 8 * 3600)
+    hhmm = g.tm_hour * 100 + g.tm_min
+    weekday = g.tm_wday < 5          # 周一至周五
+    if not weekday or hhmm < 930:
+        return "early", mode
+    if hhmm < 1605:
+        return "intraday", mode
+    return "close", mode
+
+
 def _build(args):
+    mode, _ = _resolve_mode(args.mode)
+    if args.mode == "close" and mode != "close":
+        print("      ⚠️ 现在未到收盘（港股 16:00），本次自动改标为「%s」" %
+              {"early": "早盘前", "intraday": "盘中"}.get(mode, mode))
     wl = load_json(WATCHLIST)
     if not wl:
         raise SystemExit("读不到 config/watchlist.json")
@@ -46,8 +66,8 @@ def _build(args):
     news = fetch_all_news(deep, days=0, limit=2)
 
     today = hk_today()
-    mode_cn = "收盘" if args.mode == "close" else "早盘前"
-    slug = "%s-%s" % (today, "close" if args.mode == "close" else "early")
+    mode_cn = {"close": "收盘", "early": "早盘前", "intraday": "盘中"}[mode]
+    slug = "%s-%s" % (today, mode)
     fname = slug                      # 纯 ASCII：避免钉钉 PC 端对中文 URL 处理不良
     md_path = os.path.join(REPORT_DIR, fname + ".md")
     html_path = os.path.join(REPORT_DIR, fname + ".html")
@@ -62,14 +82,14 @@ def _build(args):
     report_url = (args.report_url_base.rstrip("/") + "/latest.html") if args.report_url_base else ""
 
     print("[3/5] 生成报告 …")
-    text = build_markdown(snap, notices, news=news, mode=args.mode,
+    text = build_markdown(snap, notices, news=news, mode=mode,
                           report_path="reports/" + fname + ".md",
                           report_url=report_url, data_ts=data_ts, days=args.days)
     os.makedirs(REPORT_DIR, exist_ok=True)
     with open(md_path, "w", encoding="utf-8") as f:
         f.write(text)
     with open(html_path, "w", encoding="utf-8") as f:
-        f.write(build_html(snap, notices, news=news, mode=args.mode, data_ts=data_ts, days=args.days))
+        f.write(build_html(snap, notices, news=news, mode=mode, data_ts=data_ts, days=args.days))
 
     png_ok = False
     if not args.no_chart:
@@ -99,7 +119,7 @@ def _build(args):
         "report_url": report_url,
         "png_name": "latest-chart.png" if png_ok else "",
         "today": today,
-        "mode": args.mode,
+        "mode": mode,
     })
     return 0
 
@@ -124,7 +144,8 @@ def _push(args):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mode", choices=["close", "early"], default="close")
+    ap.add_argument("--mode", choices=["close", "early", "auto"], default="auto",
+                    help="close=收盘 / early=早盘前 / auto=按香港时间自动判定")
     ap.add_argument("--phase", choices=["all", "build", "push"], default="all")
     ap.add_argument("--days", type=int, default=5, help="公告回溯天数")
     ap.add_argument("--dry-run", action="store_true", help="只打印消息，不推送")
