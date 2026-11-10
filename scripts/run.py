@@ -47,10 +47,11 @@ def _build(args):
 
     today = hk_today()
     mode_cn = "收盘" if args.mode == "close" else "早盘前"
-    fname = "港股AI日报-%s-%s" % (today, mode_cn)
+    slug = "%s-%s" % (today, "close" if args.mode == "close" else "early")
+    fname = slug                      # 纯 ASCII：避免钉钉 PC 端对中文 URL 处理不良
     md_path = os.path.join(REPORT_DIR, fname + ".md")
     html_path = os.path.join(REPORT_DIR, fname + ".html")
-    png_name = fname + "-图表.png"
+    png_name = fname + "-chart.png"
     png_path = os.path.join(REPORT_DIR, png_name)
 
     data_ts = ""
@@ -58,7 +59,7 @@ def _build(args):
         if b.get("date"):
             data_ts = "%s %s" % (b["date"], b.get("time", ""))
             break
-    report_url = (args.report_url_base.rstrip("/") + "/" + fname + ".html") if args.report_url_base else ""
+    report_url = (args.report_url_base.rstrip("/") + "/latest.html") if args.report_url_base else ""
 
     print("[3/5] 生成报告 …")
     text = build_markdown(snap, notices, news=news, mode=args.mode,
@@ -75,11 +76,18 @@ def _build(args):
         print("[3b] 生成图表 PNG …")
         chart_html = build_chart_html(snap, "港股 AI 监控 · %s %s" % (today, mode_cn),
                                       "数据：东方财富 / 新浪 · 覆盖 %d 家 · PS(TTM)=总市值÷滚动12个月营收" % len(snap["rows"]))
-        chart_path = os.path.join(REPORT_DIR, fname + "-图表.html")
+        chart_path = os.path.join(REPORT_DIR, fname + "-chart.html")
         with open(chart_path, "w", encoding="utf-8") as f:
             f.write(chart_html)
         png_ok = render_png(chart_path, png_path)
         print("      图表 %s" % ("OK %d bytes" % os.path.getsize(png_path) if png_ok else "未生成（本机无 Chrome/Edge）"))
+
+    # 固定入口：latest.html / index.html（根路径不再 404），图片固定 latest-chart.png
+    import shutil
+    shutil.copyfile(html_path, os.path.join(REPORT_DIR, "latest.html"))
+    shutil.copyfile(html_path, os.path.join(REPORT_DIR, "index.html"))
+    if png_ok:
+        shutil.copyfile(png_path, os.path.join(REPORT_DIR, "latest-chart.png"))
 
     n_wire = sum(1 for c in deep if news.get(c["code"]))
     print("      覆盖 %d 家 ｜ 深挖 12 家中 %d 家有资讯 ｜ 报告 %s" % (len(snap["rows"]), n_wire, fname))
@@ -89,7 +97,7 @@ def _build(args):
         "text": text,
         "md_path": "reports/" + fname + ".md",
         "report_url": report_url,
-        "png_name": png_name if png_ok else "",
+        "png_name": "latest-chart.png" if png_ok else "",
         "today": today,
         "mode": args.mode,
     })
