@@ -29,20 +29,20 @@ from report import build_html, build_markdown  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WATCHLIST = os.path.join(ROOT, "config", "watchlist.json")
 STATE = os.path.join(ROOT, ".cache", "last_message.json")
+PUSHED = os.path.join(ROOT, ".cache", "pushed.json")
 
 
 def _resolve_mode(mode):
     """根据香港时间确定版本，避免盘中数据被标成「收盘」。
-    港股时段：09:30 开盘、12:00-13:00 午休、16:00 收盘。
-    < 09:30 → early；09:30-16:05 → intraday；>= 16:05 → close。
+    港股：09:30 开盘、12:00-13:00 午休、16:00 收市（16:10 收盘竞价结束）。
+    < 09:30 → early；09:30-16:10 → intraday；>= 16:10 → close。
     """
     import time as _t
     g = _t.gmtime(_t.time() + 8 * 3600)
     hhmm = g.tm_hour * 100 + g.tm_min
-    weekday = g.tm_wday < 5          # 周一至周五
-    if not weekday or hhmm < 930:
+    if g.tm_wday >= 5 or hhmm < 930:      # 周末或开盘前
         return "early", mode
-    if hhmm < 1605:
+    if hhmm < 1610:                        # 收盘竞价尚未结束，价格还会变
         return "intraday", mode
     return "close", mode
 
@@ -79,6 +79,18 @@ def _build(args):
         if b.get("date"):
             data_ts = "%s %s" % (b["date"], b.get("time", ""))
             break
+    if mode == "close":
+        # 收盘版一律标 16:00 收盘价（16:10 后取到的即为收盘竞价终值）
+        data_ts = "%s 16:00" % today.replace("-", "/")
+        latest = 0
+        for r in snap["rows"]:
+            if r.get("quote_ts"):
+                latest = max(latest, int(r["quote_ts"]))
+        if latest:
+            import time as _t
+            g = _t.gmtime(latest + 8 * 3600)
+            if g.tm_hour * 100 + g.tm_min < 1555:
+                print("      ⚠️ 行情源最新时点仅 %02d:%02d，可能未定格" % (g.tm_hour, g.tm_min))
     report_url = (args.report_url_base.rstrip("/") + "/latest.html") if args.report_url_base else ""
 
     print("[3/5] 生成报告 …")
@@ -128,6 +140,13 @@ def _push(args):
     st = load_json(STATE)
     if not st:
         raise SystemExit("没有待推送消息，请先跑 --phase build")
+    # 每天每个版本只发一次（防止 cron 延迟 / 手动补发导致重复）
+    key = "%s-%s" % (st.get("today"), st.get("mode"))
+    done = load_json(PUSHED) or {}
+    if not args.force and not args.dry_run and done.get("key") == key:
+        print("[4/5] 今日 %s 版已于 %s 推送过，跳过以免重复（需重发请加 --force）"
+              % (key, done.get("at", "?")))
+        return 0
     text = st["text"]
     if st.get("png_name") and args.img_base:
         url = "%s/%s" % (args.img_base.rstrip("/"), st["png_name"])
@@ -136,6 +155,10 @@ def _push(args):
     print("[4/5] 推送钉钉 …")
     ok, sizes = push_text(text, title=st["title"], dry_run=args.dry_run,
                           card_url=st.get("report_url") or None)
+    if ok and not args.dry_run:
+        import time as _t
+        save_json(PUSHED, {"key": key, "ts": int(_t.time()),
+                           "at": _t.strftime("%Y-%m-%d %H:%M", _t.gmtime(_t.time() + 8 * 3600))})
     print("[5/5] 完成 ｜ %s ｜ 分条 %s ｜ markdown %s"
           % ("dry-run 未推送" if args.dry_run else ("推送成功 OK" if ok else "推送失败 FAILED"),
              sizes, st.get("md_path")))
@@ -144,11 +167,12 @@ def _push(args):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mode", choices=["close", "early", "auto"], default="auto",
-                    help="close=收盘 / early=早盘前 / auto=按香港时间自动判定")
+    ap.add_argument("--mode", choices=["close", "early", "intraday", "auto"], default="auto",
+                    help="close=收盘 / early=早盘前 / intraday=盘中 / auto=按香港时间自动判定")
     ap.add_argument("--phase", choices=["all", "build", "push"], default="all")
     ap.add_argument("--days", type=int, default=5, help="公告回溯天数")
     ap.add_argument("--dry-run", action="store_true", help="只打印消息，不推送")
+    ap.add_argument("--force", action="store_true", help="即使今日该版本已推送过也重发")
     ap.add_argument("--no-push", action="store_true", help="不推送，只生成")
     ap.add_argument("--no-chart", action="store_true", help="不生成图表 PNG")
     ap.add_argument("--refresh-fin", action="store_true", help="强制刷新财务缓存")

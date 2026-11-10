@@ -2,17 +2,20 @@ name: 港股AI日报
 
 on:
   schedule:
-    # 北京时间 09:05 = UTC 01:05（早盘前版，工作日）
-    - cron: "5 1 * * 1-5"
-    # 北京时间 17:05 = UTC 09:05（收盘版，工作日）
-    - cron: "5 9 * * 1-5"
+    # 港股 16:20（= UTC 08:20，工作日）：收盘竞价 16:10 结束后取正式收盘价
+    # 每天只跑一次、只推一次
+    - cron: "20 8 * * 1-5"
   workflow_dispatch:
     inputs:
       mode:
-        description: "auto=按时间自动判定 / close=收盘版 / early=早盘前版 / intraday=盘中快照"
+        description: "auto=按时间自动判定 / close=收盘版 / intraday=盘中快照 / early=早盘前"
         type: choice
-        options: [auto, close, early, intraday]
+        options: [auto, close, intraday, early]
         default: auto
+      force:
+        description: "今日已推送过也强制重发"
+        type: boolean
+        default: false
       dry_run:
         description: "只生成不推送"
         type: boolean
@@ -52,7 +55,8 @@ jobs:
           MODE="${{ github.event.inputs.mode }}"
           if [ -z "$MODE" ]; then MODE=auto; fi
           echo "mode=$MODE" >> "$GITHUB_OUTPUT"
-          echo "本次模式：$MODE（auto 会按港时自动判定早盘前/盘中/收盘）"
+          echo "港时：$(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M %A')"
+          echo "本次模式：$MODE（auto 会按港时自动判定）"
 
       - name: Build report + chart
         env:
@@ -64,11 +68,12 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add reports .cache/fin_cache.json 2>/dev/null || true
+          git add reports .cache/fin_cache.json .cache/pushed.json 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "无变更，跳过提交"
           else
             git commit -m "chore: 港股AI日报 $(TZ=Asia/Shanghai date +%Y-%m-%d) ${{ steps.m.outputs.mode }}"
+            git pull --rebase --autostash origin main
             git push
           fi
 
@@ -80,10 +85,12 @@ jobs:
           REPORT_URL_BASE: ${{ vars.REPORT_URL_BASE }}
           IMG_URL_BASE: ${{ vars.IMG_URL_BASE }}
         run: |
+          EXTRA=""
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then EXTRA="--force"; fi
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
-            python scripts/run.py --phase push --dry-run
+            python scripts/run.py --phase push --dry-run $EXTRA
           else
-            python scripts/run.py --phase push
+            python scripts/run.py --phase push $EXTRA
           fi
 
       # 可选：把 reports/ 发布到 GitHub Pages，钉钉消息里的链接就能直接点开
