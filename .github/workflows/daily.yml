@@ -3,8 +3,11 @@ name: 港股AI日报
 on:
   schedule:
     # 港股 16:20（= UTC 08:20，工作日）：收盘竞价 16:10 结束后取正式收盘价
-    # 每天只跑一次、只推一次
+    # 另加两个备援槽：GitHub 定时任务高峰期会延迟，谁先跑成谁推，
+    # 靠 .cache/pushed.json 去重，保证每天仍然只推一条
     - cron: "20 8 * * 1-5"
+    - cron: "50 8 * * 1-5"   # 16:50 备援
+    - cron: "20 9 * * 1-5"   # 17:20 备援
   workflow_dispatch:
     inputs:
       mode:
@@ -92,6 +95,19 @@ jobs:
           else
             python scripts/run.py --phase push $EXTRA
           fi
+
+      # 推送成功后把「今天已推过」写回仓库，后续备援槽/延迟槽就会自动跳过
+      - name: Commit push state
+        if: always()
+        run: |
+          git add .cache/pushed.json 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "推送状态无变化"
+            exit 0
+          fi
+          git commit -m "chore: 推送状态 $(TZ=Asia/Hong_Kong date +%Y-%m-%d)"
+          git pull --rebase --autostash origin main
+          git push
 
       # 可选：把 reports/ 发布到 GitHub Pages，钉钉消息里的链接就能直接点开
       - name: Upload Pages artifact
