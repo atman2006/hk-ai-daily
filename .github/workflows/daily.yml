@@ -151,3 +151,30 @@ jobs:
         if: always()
         uses: actions/deploy-pages@v4
         continue-on-error: true
+
+      # 跑挂了也要让人知道，不能静默失败
+      - name: Alert on failure
+        if: failure()
+        env:
+          DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
+          DINGTALK_TOKEN: ${{ secrets.DINGTALK_TOKEN }}
+        run: |
+          python - <<'PY'
+          import os, json, urllib.request
+          hook = os.environ.get("DINGTALK_WEBHOOK", "").strip()
+          if not hook:
+              tok = os.environ.get("DINGTALK_TOKEN", "").strip()
+              hook = "https://oapi.dingtalk.com/robot/send?access_token=" + tok if tok else ""
+          if not hook:
+              print("未配置钉钉，跳过告警")
+              raise SystemExit(0)
+          url = "https://github.com/%s/actions/runs/%s" % (os.environ.get("GITHUB_REPOSITORY", ""), os.environ.get("GITHUB_RUN_ID", ""))
+          text = ("### ⚠️ 港股AI日报 · 今日生成失败\n\n"
+                  "流水线出错，今天这份没能生成。\n\n"
+                  "- 仓库：%s\n- 运行号：%s\n- [点我看日志](%s)" % (os.environ.get("GITHUB_REPOSITORY", ""), os.environ.get("GITHUB_RUN_ID", ""), url))
+          body = {"msgtype": "markdown", "markdown": {"title": "港股AI日报 失败", "text": text}}
+          req = urllib.request.Request(hook, data=json.dumps(body).encode(),
+                                       headers={"Content-Type": "application/json"}, method="POST")
+          with urllib.request.urlopen(req, timeout=20) as r:
+              print("alert ->", r.status, r.read()[:120])
+          PY

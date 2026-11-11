@@ -24,8 +24,10 @@ class FetchError(RuntimeError):
     pass
 
 
-def http_get(url, headers=None, timeout=25, tries=3, encoding="utf-8"):
-    """带重试的 GET，返回文本。"""
+def http_get(url, headers=None, timeout=25, tries=5, encoding="utf-8"):
+    """带重试 + 指数退避的 GET，返回文本。
+    东财 push2 偶发限流（RemoteDisconnected），所以默认给 5 次、2/4/8/15 秒退避。
+    """
     h = {"User-Agent": UA}
     if headers:
         h.update(headers)
@@ -39,11 +41,11 @@ def http_get(url, headers=None, timeout=25, tries=3, encoding="utf-8"):
         except Exception as e:  # noqa: BLE001
             last = e
             if i < tries - 1:
-                time.sleep(1.5 * (i + 1))
+                time.sleep(min(15, 2 ** (i + 1)))
     raise FetchError("%s -> %s" % (url[:90], last))
 
 
-def http_get_json(url, headers=None, timeout=25, tries=3):
+def http_get_json(url, headers=None, timeout=25, tries=5):
     return json.loads(http_get(url, headers=headers, timeout=timeout, tries=tries))
 
 
