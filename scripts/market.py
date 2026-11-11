@@ -4,7 +4,8 @@ import json
 import os
 import time
 
-from common import CACHE_DIR, FetchError, http_get, http_get_json, load_json, num, save_json
+from common import (CACHE_DIR, FetchError, hk_datetime_str, http_get,
+                    http_get_json, load_json, num, save_json)
 
 QUOTE_FIELDS = "f2,f3,f4,f6,f9,f12,f14,f20,f21,f23,f124"
 FIN_TTL_DAYS = 7
@@ -162,7 +163,7 @@ def build_snapshot(watchlist, refresh_fin=False):
         })
 
     return {
-        "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "generated_at": hk_datetime_str(),
         "benchmarks": bench,
         "rows": rows,
         "errors": errors,
