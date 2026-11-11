@@ -140,12 +140,12 @@ def _push(args):
     st = load_json(STATE)
     if not st:
         raise SystemExit("没有待推送消息，请先跑 --phase build")
-    # 每天每个版本只发一次（防止 cron 延迟 / 手动补发导致重复）
-    key = "%s-%s" % (st.get("today"), st.get("mode"))
+    # 每天只发一次（不看 mode，防止「早盘前」和「收盘」各发一条）
+    key = st.get("today") or ""
     done = load_json(PUSHED) or {}
     if not args.force and not args.dry_run and done.get("key") == key:
-        print("[4/5] 今日 %s 版已于 %s 推送过，跳过以免重复（需重发请加 --force）"
-              % (key, done.get("at", "?")))
+        print("[4/5] %s 已于 %s 推送过（%s），跳过以免重复（需重发请加 --force）"
+              % (key, done.get("at", "?"), done.get("mode", "")))
         return 0
     text = st["text"]
     if st.get("png_name") and args.img_base:
@@ -157,7 +157,7 @@ def _push(args):
                           card_url=st.get("report_url") or None)
     if ok and not args.dry_run:
         import time as _t
-        save_json(PUSHED, {"key": key, "ts": int(_t.time()),
+        save_json(PUSHED, {"key": key, "mode": st.get("mode"), "ts": int(_t.time()),
                            "at": _t.strftime("%Y-%m-%d %H:%M", _t.gmtime(_t.time() + 8 * 3600))})
     print("[5/5] 完成 ｜ %s ｜ 分条 %s ｜ markdown %s"
           % ("dry-run 未推送" if args.dry_run else ("推送成功 OK" if ok else "推送失败 FAILED"),

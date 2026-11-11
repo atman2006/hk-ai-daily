@@ -31,7 +31,8 @@ permissions:
 
 concurrency:
   group: hk-ai-daily
-  cancel-in-progress: false
+  # 推送有按日期去重兜底，所以并发时直接让新的取代旧的，不会出现双发
+  cancel-in-progress: true
 
 jobs:
   # GitHub 的 schedule 会延迟。今天 16:20 的槽被推迟到凌晨 01:08 才跑，
@@ -94,6 +95,8 @@ jobs:
         run: python scripts/run.py --mode "${{ steps.m.outputs.mode }}" --phase build
 
       - name: Commit reports
+        # 并发/重跑时可能因 rebase 冲突失败；不影响推送与 Pages 部署，不让它拖垮整条流水线
+        continue-on-error: true
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -125,6 +128,7 @@ jobs:
       # 推送成功后把「今天已推过」写回仓库，后续备援槽/延迟槽就会自动跳过
       - name: Commit push state
         if: always()
+        continue-on-error: true
         run: |
           git add .cache/pushed.json 2>/dev/null || true
           if git diff --cached --quiet; then
